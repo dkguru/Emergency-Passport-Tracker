@@ -1,19 +1,28 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Imaging;
+using System.Drawing.Printing;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Windows.Forms;
-using System.Drawing.Printing;
+using iText.Kernel.Pdf;
+using iText.Layout;
+using iText.Layout.Element;
+using EmergencyPassportTracker.Models;
+using EmergencyPassportTracker.Services;
 
-namespace Emergency_Passport_Tracker
+namespace EmergencyPassportTracker
 {
     public partial class MainForm : Form
     {
-        private List<PassportRecord> records = [];
-        private readonly string dataFile = "ept_data.enc";
+        private List<PassportRecord> records = new();
+        private List<AuditEntry> audit = new();
+        private DataService dataService = new();
+        private string pin = "";
+
         private Label? lblRange;
         private Button? BtnAdd;
         private Button? BtnPrint;
@@ -21,184 +30,27 @@ namespace Emergency_Passport_Tracker
         private TextBox? txtEnd;
         private DataGridView? dataGrid;
         private PictureBox? logoBox;
+        private TextBox? txtSearch;
+        private Button? btnPDF;
+        private Button? btnSave;
+        private Button? btnSearch;
         private Label? lblTitle;
-        private string pin = "";
 
         public MainForm()
         {
             InitializeComponent();
-            PromptForPin();
+            Login();
         }
 
-        private void PromptForPin()
+        private void Login()
         {
-            pin = Microsoft.VisualBasic.Interaction.InputBox("Enter PIN:", "Security", "");
+            pin = Microsoft.VisualBasic.Interaction.InputBox("Enter PIN:");
 
-            if (File.Exists(dataFile))
-                LoadData();
-        }
+            var data = dataService.Load(pin);
+            records = data.Item1;
+            audit = data.Item2;
 
-        private void LoadData()
-        {
-            try
-            {
-                byte[] encrypted = File.ReadAllBytes(dataFile);
-                string json = Decrypt(encrypted, pin);
-                records = JsonSerializer.Deserialize<List<PassportRecord>>(json) ?? [];
-                RefreshGrid();
-            }
-            catch
-            {
-                MessageBox.Show("Invalid PIN or corrupted file.");
-                Environment.Exit(0);
-            }
-        }
-
-        private void SaveData()
-        {
-            string json = JsonSerializer.Serialize(records);
-            byte[] encrypted = Encrypt(json, pin);
-            File.WriteAllBytes(dataFile, encrypted);
-        }
-
-        private void BtnAdd_Click(object sender, EventArgs e)
-        {
-            //if (!string.IsNullOrWhiteSpace(txtSingle.Text))
-            //{
-            //    AddRecord(txtSingle.Text);
-            //}
-            //else
-            if (!string.IsNullOrWhiteSpace(txtStart.Text) && !string.IsNullOrWhiteSpace(txtEnd.Text))
-            {
-                int start = int.Parse(txtStart.Text);
-                int end = int.Parse(txtEnd.Text);
-
-                for (int i = start; i <= end; i++)
-                    AddRecord(i.ToString("D8"));
-            }
-
-            SaveData();
             RefreshGrid();
-        }
-
-        private void AddRecord(string number)
-        {
-            records.Add(new PassportRecord
-            {
-                PassportNumber = number,
-                IssuedTo = "",
-                DateIssued = "",
-                Notes = ""
-            });
-        }
-
-        private void RefreshGrid()
-        {
-            dataGrid.DataSource = null;
-            dataGrid.DataSource = records;
-        }
-
-        // 🔐 Encryption
-        private static byte[] Encrypt(string plainText, string pin)
-        {
-            if (plainText is null)
-                throw new ArgumentNullException(nameof(plainText));
-
-            if (string.IsNullOrWhiteSpace(pin))
-                throw new ArgumentException("PIN cannot be empty.", nameof(pin));
-
-            using Aes aes = Aes.Create();
-            aes.Key = SHA256.HashData(Encoding.UTF8.GetBytes(pin));
-            aes.GenerateIV();
-
-            using MemoryStream ms = new();
-
-            // Write IV first so Decrypt() can recover it later
-            ms.Write(aes.IV, 0, aes.IV.Length);
-
-            // Important: dispose these before calling ms.ToArray()
-            using (CryptoStream cs = new(ms, aes.CreateEncryptor(), CryptoStreamMode.Write))
-            using (StreamWriter sw = new(cs, Encoding.UTF8))
-            {
-                sw.Write(plainText);
-            }
-
-            return ms.ToArray();
-        }
-
-        private static string Decrypt(byte[] cipher, string pin)
-        {
-            if (cipher is null)
-                throw new ArgumentNullException(nameof(cipher));
-
-            if (string.IsNullOrWhiteSpace(pin))
-                throw new ArgumentException("PIN cannot be empty.", nameof(pin));
-
-            using Aes aes = Aes.Create();
-            aes.Key = SHA256.HashData(Encoding.UTF8.GetBytes(pin));
-
-            int ivLength = aes.BlockSize / 8; // usually 16 bytes for AES
-
-            if (cipher.Length < ivLength)
-                throw new CryptographicException("Encrypted data is too short.");
-
-            byte[] iv = new byte[ivLength];
-            Array.Copy(cipher, 0, iv, 0, ivLength);
-            aes.IV = iv;
-
-            try
-            {
-                using MemoryStream ms = new(cipher, ivLength, cipher.Length - ivLength);
-                using CryptoStream cs = new(ms, aes.CreateDecryptor(), CryptoStreamMode.Read);
-                using StreamReader sr = new(cs, Encoding.UTF8);
-
-                return sr.ReadToEnd();
-            }
-            catch (CryptographicException ex)
-            {
-                throw new CryptographicException("Invalid PIN or corrupted encrypted data.", ex);
-            }
-        }
-
-        private static byte[] OldEncrypt(string plainText, string pin)
-        {
-            using Aes aes = Aes.Create();
-            aes.Key = SHA256.HashData(Encoding.UTF8.GetBytes(pin));
-            aes.GenerateIV();
-
-            using MemoryStream ms = new();
-            ms.Write(aes.IV);
-
-            using CryptoStream cs = new(ms, aes.CreateEncryptor(), CryptoStreamMode.Write);
-            using StreamWriter sw = new(cs);
-            sw.Write(plainText);
-
-            return ms.ToArray();
-        }
-
-        private static string OldDecrypt(byte[] cipher, string pin)
-        {
-            using Aes aes = Aes.Create();
-            aes.Key = SHA256.HashData(Encoding.UTF8.GetBytes(pin));
-
-            byte[] iv = new byte[16];
-            Array.Copy(cipher, iv, 16);
-            aes.IV = iv;
-
-            using MemoryStream ms = new(cipher, 16, cipher.Length - 16);
-            using CryptoStream cs = new(ms, aes.CreateDecryptor(), CryptoStreamMode.Read);
-            using StreamReader sr = new(cs);
-
-            return sr.ReadToEnd();
-        }
-
-        // 🖨️ Print
-        private void BtnPrint_Click(object sender, EventArgs e)
-        {
-            PrintDocument pd = new();
-            pd.PrintPage += PrintPage;
-            PrintPreviewDialog preview = new() { Document = pd };
-            preview.ShowDialog();
         }
 
         private void InitializeComponent()
@@ -212,6 +64,10 @@ namespace Emergency_Passport_Tracker
             dataGrid = new DataGridView();
             logoBox = new PictureBox();
             lblTitle = new Label();
+            txtSearch = new TextBox();
+            btnPDF = new Button();
+            btnSave = new Button();
+            btnSearch = new Button();
             ((System.ComponentModel.ISupportInitialize)dataGrid).BeginInit();
             ((System.ComponentModel.ISupportInitialize)logoBox).BeginInit();
             SuspendLayout();
@@ -229,7 +85,7 @@ namespace Emergency_Passport_Tracker
             // 
             BtnAdd.Location = new Point(403, 50);
             BtnAdd.Name = "BtnAdd";
-            BtnAdd.Size = new Size(132, 23);
+            BtnAdd.Size = new Size(92, 23);
             BtnAdd.TabIndex = 10;
             BtnAdd.Text = "Add Passports";
             BtnAdd.Click += BtnAdd_Click;
@@ -264,15 +120,17 @@ namespace Emergency_Passport_Tracker
             dataGrid.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             dataGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             dataGrid.Location = new Point(12, 93);
+            dataGrid.MultiSelect = false;
             dataGrid.Name = "dataGrid";
-            dataGrid.Size = new Size(779, 264);
+            dataGrid.Size = new Size(779, 325);
             dataGrid.TabIndex = 7;
-            dataGrid.CellEndEdit += DataGrid_CellEndEdit;
+            dataGrid.CellClick += DataGrid_CellClick;
+            dataGrid.SelectionChanged += DataGrid_SelectionChanged;
             // 
             // logoBox
             // 
             logoBox.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            logoBox.Image = (Image)resources.GetObject("logoBox.Image");
+            logoBox.Image = (System.Drawing.Image)resources.GetObject("logoBox.Image");
             logoBox.Location = new Point(716, 12);
             logoBox.Name = "logoBox";
             logoBox.Size = new Size(75, 75);
@@ -289,9 +147,49 @@ namespace Emergency_Passport_Tracker
             lblTitle.TabIndex = 9;
             lblTitle.Text = "Emergency Passport Tracker";
             // 
+            // txtSearch
+            // 
+            txtSearch.Location = new Point(498, 12);
+            txtSearch.Name = "txtSearch";
+            txtSearch.Size = new Size(172, 23);
+            txtSearch.TabIndex = 11;
+            // 
+            // btnPDF
+            // 
+            btnPDF.Location = new Point(514, 51);
+            btnPDF.Name = "btnPDF";
+            btnPDF.Size = new Size(75, 23);
+            btnPDF.TabIndex = 12;
+            btnPDF.Text = "PDF";
+            btnPDF.UseVisualStyleBackColor = true;
+            btnPDF.Click += btnPDF_Click;
+            // 
+            // btnSave
+            // 
+            btnSave.Location = new Point(279, 12);
+            btnSave.Name = "btnSave";
+            btnSave.Size = new Size(75, 23);
+            btnSave.TabIndex = 13;
+            btnSave.Text = "Save";
+            btnSave.UseVisualStyleBackColor = true;
+            btnSave.Click += btnSave_Click;
+            // 
+            // btnSearch
+            // 
+            btnSearch.Location = new Point(417, 12);
+            btnSearch.Name = "btnSearch";
+            btnSearch.Size = new Size(75, 23);
+            btnSearch.TabIndex = 14;
+            btnSearch.Text = "Search";
+            btnSearch.UseVisualStyleBackColor = true;
+            // 
             // MainForm
             // 
-            ClientSize = new Size(803, 384);
+            ClientSize = new Size(803, 445);
+            Controls.Add(btnSearch);
+            Controls.Add(btnSave);
+            Controls.Add(btnPDF);
+            Controls.Add(txtSearch);
             Controls.Add(lblTitle);
             Controls.Add(logoBox);
             Controls.Add(dataGrid);
@@ -309,7 +207,146 @@ namespace Emergency_Passport_Tracker
 
         }
 
+        private void AddRecord(string number)
+        {
+            number = number.PadLeft(8, '0');
+            if (records.Exists(r => r.PassportNumber == number))
+                return;
+            records.Add(new PassportRecord { PassportNumber = number });
+            audit.Add(new AuditEntry { Timestamp = DateTime.Now, Action = "Added", PassportNumber = number });
+        }
+
+        private void UpdateRecord(PassportRecord record)
+        {
+            if (record.Locked)
+            {
+                MessageBox.Show("Record is locked and cannot be modified.");
+                return;
+            }
+
+            if (record.Status == "B") // Issued
+            {
+                record.Locked = true;
+            }
+
+            audit.Add(new AuditEntry { Timestamp = DateTime.Now, Action = "Updated", PassportNumber = record.PassportNumber });
+
+            SaveData();
+        }
+
+        private void OldUpdateRecord(PassportRecord record)
+        {
+            if (record.Locked)
+            {
+                MessageBox.Show("Record is locked and cannot be modified.");
+                return;
+            }
+
+            if (record.Status == "B") // Issued
+            {
+                record.Locked = true;
+            }
+
+            audit.Add(new AuditEntry
+            {
+                Timestamp = DateTime.Now,
+                Action = "Updated",
+                PassportNumber = record.PassportNumber
+            });
+
+            SaveData();
+        }
+
+        private bool IsValidStatus(string status)
+        {
+            return status == "A" || status == "B" || status == "C" || status == "D";
+        }
+
+        private void ApplyFilter()
+        {
+            string search = txtSearch.Text.ToLower();
+
+            var filtered = records.FindAll(r =>
+                r.PassportNumber.Contains(search) ||
+                (r.IssuedTo ?? "").ToLower().Contains(search) ||
+                r.Status.Contains(search)
+            );
+
+            dataGrid.DataSource = null;
+            dataGrid.DataSource = filtered;
+        }
+
+        private void BtnAdd_Click(object sender, EventArgs e)
+        {
+
+
+            //if (!string.IsNullOrWhiteSpace(txtSingle.Text))
+            //{
+            //    AddRecord(txtSingle.Text);
+            //}
+            //else
+            if (!string.IsNullOrWhiteSpace(txtStart.Text) && !string.IsNullOrWhiteSpace(txtEnd.Text))
+            {
+                int start = int.Parse(txtStart.Text);
+                int end = int.Parse(txtEnd.Text);
+
+                for (int i = start; i <= end; i++)
+                    AddRecord(i.ToString("D8"));
+            }
+
+            //    SaveData();
+            dataService.Save(records, audit, pin);
+            RefreshGrid();
+        }
+
+        private void RefreshGrid()
+        {
+            dataGrid.DataSource = null;
+            dataGrid.DataSource = records;
+        }
+
+        private void BtnPrint_Click(object sender, EventArgs e)
+        {
+            PrintDocument pd = new();
+            pd.PrintPage += PrintPage;
+            PrintPreviewDialog preview = new() { Document = pd };
+            preview.ShowDialog();
+        }
+
         private void PrintPage(object sender, PrintPageEventArgs e)
+        {
+            float y = 40;
+            Font header = new("Arial", 14, FontStyle.Bold);
+            Font font = new("Arial", 10);
+
+            e.Graphics.DrawString("INVENTORY LOG OF EMERGENCY PASSPORTS", header, Brushes.Black, 50, y);
+            y += 30;
+
+            e.Graphics.DrawString("Emergency passport #", font, Brushes.Black, 50, y);
+            e.Graphics.DrawString("Issued to", font, Brushes.Black, 200, y);
+            e.Graphics.DrawString("Date issued", font, Brushes.Black, 350, y);
+            e.Graphics.DrawString("Notes/comments", font, Brushes.Black, 480, y);
+
+            y += 20;
+
+            foreach (var r in records)
+            {
+                e.Graphics.DrawString(r.PassportNumber, font, Brushes.Black, 50, y);
+                e.Graphics.DrawString(r.IssuedTo, font, Brushes.Black, 200, y);
+                e.Graphics.DrawString(r.DateIssued?.ToShortDateString(), font, Brushes.Black, 350, y);
+                e.Graphics.DrawString(r.Notes, font, Brushes.Black, 480, y);
+
+                y += 20;
+            }
+
+            y += 40;
+            e.Graphics.DrawString("Printed name and signature of Honorary Consul:", font, Brushes.Black, 50, y);
+
+            y += 40;
+            e.Graphics.DrawString("Date: ____________________", font, Brushes.Black, 50, y);
+        }
+
+        private void NewerPrintPage(object sender, PrintPageEventArgs e)
         {
             float y = 50;
             Font font = new("Arial", 10);
@@ -339,18 +376,92 @@ namespace Emergency_Passport_Tracker
             e.Graphics.DrawString("Date: ___________________", font, Brushes.Black, 50, y);
         }
 
-        private void DataGrid_CellEndEdit(object sender, DataGridViewCellEventArgs e)
+        private void OldPrintPage(object sender, PrintPageEventArgs e)
+        {
+            float y = 40;
+
+            foreach (var r in records)
+            {
+                e.Graphics.DrawString($"{r.PassportNumber}  {r.IssuedTo}  {r.DateIssued}  {r.Notes}",
+                    new Font("Arial", 10), Brushes.Black, 50, y);
+
+                y += 20;
+            }
+        }
+
+        private void DataGrid_CellClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0) return; // 🔥 prevents header crash
+
+            var record = dataGrid.Rows[e.RowIndex].DataBoundItem as PassportRecord;
+            if (record == null) return;
+
+            // Optional: do something with record
+        }
+
+        private void DataGrid_SelectionChanged(object sender, EventArgs e)
+        {
+            if (dataGrid.CurrentRow == null || dataGrid.CurrentRow.Index < 0)
+                return;
+
+            var record = dataGrid.CurrentRow.DataBoundItem as PassportRecord;
+            if (record == null) return;
+
+            // Optional: do something
+        }
+
+        //private void DataGrid_CellEndEdit(object sender, DataGridViewCellEventArgs e)
+        //{
+        //    if (e.RowIndex < 0) return;
+        //    SaveData();
+        //    // dataService.Save(records, audit, pin);
+        //}
+
+        private void SaveData()
+        {
+            dataService.Save(records, audit, pin);
+        }
+
+        //private void BackupData()
+        //{
+        //    File.Copy(dataFile, "backup_" + DateTime.Now.Ticks + ".enc");
+        //}
+
+        //private void RestoreData(string file)
+        //{
+        //    File.Copy(file, dataFile, true);
+        //    LoadData();
+        //    RefreshGrid();
+        //}
+
+        public class DataWrapper
+        {
+            public List<PassportRecord> Records { get; set; }
+            public List<AuditEntry> Audit { get; set; }
+        }
+
+        private void ExportPdf(string path)
+        {
+            using var writer = new PdfWriter(path);
+            using var pdf = new PdfDocument(writer);
+            var doc = new Document(pdf);
+
+            doc.Add(new Paragraph("INVENTORY LOG OF EMERGENCY PASSPORTS"));
+
+            foreach (var r in records)
+            {
+                doc.Add(new Paragraph($"{r.PassportNumber} | {r.IssuedTo} | {r.DateIssued} | {r.Status} | {r.Notes}"));
+            }
+        }
+
+        private void btnPDF_Click(object sender, EventArgs e)
+        {
+            ExportPdf("EPTLog.PDF");
+        }
+
+        private void btnSave_Click(object sender, EventArgs e)
         {
             SaveData();
         }
-
-    }
-
-    public class PassportRecord
-    {
-        public string? PassportNumber { get; set; }
-        public string? IssuedTo { get; set; }
-        public string? DateIssued { get; set; }
-        public string? Notes { get; set; }
     }
 }
