@@ -34,6 +34,7 @@ namespace EmergencyPassportTracker
         private Button? btnPDF;
         private Button? btnSave;
         private Button? btnSearch;
+        private Button btnAudit;
         private Label? lblTitle;
 
         public MainForm()
@@ -68,6 +69,7 @@ namespace EmergencyPassportTracker
             btnPDF = new Button();
             btnSave = new Button();
             btnSearch = new Button();
+            btnAudit = new Button();
             ((System.ComponentModel.ISupportInitialize)dataGrid).BeginInit();
             ((System.ComponentModel.ISupportInitialize)logoBox).BeginInit();
             SuspendLayout();
@@ -124,7 +126,9 @@ namespace EmergencyPassportTracker
             dataGrid.Name = "dataGrid";
             dataGrid.Size = new Size(779, 325);
             dataGrid.TabIndex = 7;
+            dataGrid.CellBeginEdit += DataGrid_CellBeginEdit;
             dataGrid.CellClick += DataGrid_CellClick;
+            dataGrid.CellEndEdit += DataGrid_CellEndEdit;
             dataGrid.SelectionChanged += DataGrid_SelectionChanged;
             // 
             // logoBox
@@ -166,7 +170,7 @@ namespace EmergencyPassportTracker
             // 
             // btnSave
             // 
-            btnSave.Location = new Point(279, 12);
+            btnSave.Location = new Point(255, 12);
             btnSave.Name = "btnSave";
             btnSave.Size = new Size(75, 23);
             btnSave.TabIndex = 13;
@@ -182,10 +186,22 @@ namespace EmergencyPassportTracker
             btnSearch.TabIndex = 14;
             btnSearch.Text = "Search";
             btnSearch.UseVisualStyleBackColor = true;
+            btnSearch.Click += btnSearch_Click;
+            // 
+            // btnAudit
+            // 
+            btnAudit.Location = new Point(336, 12);
+            btnAudit.Name = "btnAudit";
+            btnAudit.Size = new Size(75, 23);
+            btnAudit.TabIndex = 15;
+            btnAudit.Text = "Audit";
+            btnAudit.UseVisualStyleBackColor = true;
+            btnAudit.Click += btnAudit_Click;
             // 
             // MainForm
             // 
             ClientSize = new Size(803, 445);
+            Controls.Add(btnAudit);
             Controls.Add(btnSearch);
             Controls.Add(btnSave);
             Controls.Add(btnPDF);
@@ -278,13 +294,6 @@ namespace EmergencyPassportTracker
 
         private void BtnAdd_Click(object sender, EventArgs e)
         {
-
-
-            //if (!string.IsNullOrWhiteSpace(txtSingle.Text))
-            //{
-            //    AddRecord(txtSingle.Text);
-            //}
-            //else
             if (!string.IsNullOrWhiteSpace(txtStart.Text) && !string.IsNullOrWhiteSpace(txtEnd.Text))
             {
                 int start = int.Parse(txtStart.Text);
@@ -322,10 +331,11 @@ namespace EmergencyPassportTracker
             e.Graphics.DrawString("INVENTORY LOG OF EMERGENCY PASSPORTS", header, Brushes.Black, 50, y);
             y += 30;
 
-            e.Graphics.DrawString("Emergency passport #", font, Brushes.Black, 50, y);
+            e.Graphics.DrawString("Passport #", font, Brushes.Black, 50, y);
             e.Graphics.DrawString("Issued to", font, Brushes.Black, 200, y);
             e.Graphics.DrawString("Date issued", font, Brushes.Black, 350, y);
-            e.Graphics.DrawString("Notes/comments", font, Brushes.Black, 480, y);
+            e.Graphics.DrawString("Notes", font, Brushes.Black, 480, y);
+            e.Graphics.DrawString("Status", font, Brushes.Black, 600, y);
 
             y += 20;
 
@@ -335,6 +345,7 @@ namespace EmergencyPassportTracker
                 e.Graphics.DrawString(r.IssuedTo, font, Brushes.Black, 200, y);
                 e.Graphics.DrawString(r.DateIssued?.ToShortDateString(), font, Brushes.Black, 350, y);
                 e.Graphics.DrawString(r.Notes, font, Brushes.Black, 480, y);
+                e.Graphics.DrawString(r.Status, font, Brushes.Black, 600, y);
 
                 y += 20;
             }
@@ -346,57 +357,44 @@ namespace EmergencyPassportTracker
             e.Graphics.DrawString("Date: ____________________", font, Brushes.Black, 50, y);
         }
 
-        private void NewerPrintPage(object sender, PrintPageEventArgs e)
-        {
-            float y = 50;
-            Font font = new("Arial", 10);
-
-            e.Graphics.DrawString("INVENTORY LOG OF EMERGENCY PASSPORTS",
-                new Font("Arial", 14, FontStyle.Bold), Brushes.Black, 50, y);
-            y += 40;
-
-            e.Graphics.DrawString("Emergency passport #    Issued to    Date issued    Notes/comments",
-                font, Brushes.Black, 50, y);
-            y += 30;
-
-            foreach (var r in records)
-            {
-                e.Graphics.DrawString(
-                    $"{r.PassportNumber}    {r.IssuedTo}    {r.DateIssued}    {r.Notes}",
-                    font, Brushes.Black, 50, y);
-
-                y += 20;
-            }
-
-            y += 40;
-            e.Graphics.DrawString("Printed name and signature of Honorary Consul:",
-                font, Brushes.Black, 50, y);
-
-            y += 40;
-            e.Graphics.DrawString("Date: ___________________", font, Brushes.Black, 50, y);
-        }
-
-        private void OldPrintPage(object sender, PrintPageEventArgs e)
-        {
-            float y = 40;
-
-            foreach (var r in records)
-            {
-                e.Graphics.DrawString($"{r.PassportNumber}  {r.IssuedTo}  {r.DateIssued}  {r.Notes}",
-                    new Font("Arial", 10), Brushes.Black, 50, y);
-
-                y += 20;
-            }
-        }
 
         private void DataGrid_CellClick(object sender, DataGridViewCellEventArgs e)
         {
             if (e.RowIndex < 0) return; // 🔥 prevents header crash
 
             var record = dataGrid.Rows[e.RowIndex].DataBoundItem as PassportRecord;
-            if (record == null) return;
+            if (record == null)
+                return;
 
             // Optional: do something with record
+            UpdateRecord(record);
+        }
+
+        private void DataGrid_CellBeginEdit(object sender, DataGridViewCellCancelEventArgs e)
+        {
+            if (e.RowIndex < 0) return; // 🔥 prevents header crash
+
+            var record = dataGrid.Rows[e.RowIndex].DataBoundItem as PassportRecord;
+            if (record == null)
+                return;
+
+            if (record.Locked)
+            {
+                dataGrid.CancelEdit();
+                return;
+            }
+        }
+
+        private void DataGrid_CellEndEdit(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0) return; // 🔥 prevents header crash
+
+            var record = dataGrid.Rows[e.RowIndex].DataBoundItem as PassportRecord;
+            if (record == null)
+                return;
+
+            // Optional: do something with record
+            UpdateRecord(record);
         }
 
         private void DataGrid_SelectionChanged(object sender, EventArgs e)
@@ -410,29 +408,10 @@ namespace EmergencyPassportTracker
             // Optional: do something
         }
 
-        //private void DataGrid_CellEndEdit(object sender, DataGridViewCellEventArgs e)
-        //{
-        //    if (e.RowIndex < 0) return;
-        //    SaveData();
-        //    // dataService.Save(records, audit, pin);
-        //}
-
         private void SaveData()
         {
             dataService.Save(records, audit, pin);
         }
-
-        //private void BackupData()
-        //{
-        //    File.Copy(dataFile, "backup_" + DateTime.Now.Ticks + ".enc");
-        //}
-
-        //private void RestoreData(string file)
-        //{
-        //    File.Copy(file, dataFile, true);
-        //    LoadData();
-        //    RefreshGrid();
-        //}
 
         public class DataWrapper
         {
@@ -452,6 +431,8 @@ namespace EmergencyPassportTracker
             {
                 doc.Add(new Paragraph($"{r.PassportNumber} | {r.IssuedTo} | {r.DateIssued} | {r.Status} | {r.Notes}"));
             }
+
+            doc.Close();
         }
 
         private void btnPDF_Click(object sender, EventArgs e)
@@ -462,6 +443,29 @@ namespace EmergencyPassportTracker
         private void btnSave_Click(object sender, EventArgs e)
         {
             SaveData();
+            dataService.BackupData();
+        }
+
+        private void ShowAuditLog()
+        {
+            var sb = new StringBuilder();
+
+            foreach (var a in audit)
+            {
+                sb.AppendLine($"{a.Timestamp} | {a.Action} | {a.PassportNumber}");
+            }
+
+            MessageBox.Show(sb.ToString(), "Audit Log");
+        }
+
+        private void btnAudit_Click(object sender, EventArgs e)
+        {
+            ShowAuditLog();
+        }
+
+        private void btnSearch_Click(object sender, EventArgs e)
+        {
+            ApplyFilter();
         }
     }
 }

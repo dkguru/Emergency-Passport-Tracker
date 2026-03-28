@@ -134,6 +134,17 @@ namespace EmergencyPassportTracker.Services
 
             return (wrapper?.Records ?? new(), wrapper?.Audit ?? new());
         }
+        public void BackupData()
+        {
+            File.Copy(FileName, "backup_" + DateTime.Now.Ticks + ".enc");
+        }
+
+        private void RestoreData(string file)
+        {
+            File.Copy(file, FileName, true);
+            //LoadData();
+            //RefreshGrid();
+        }
 
         private class DataWrapper
         {
