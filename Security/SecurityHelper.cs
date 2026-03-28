@@ -5,7 +5,7 @@ using System.Text;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
 
-namespace EmergencyPassportTracker.Security
+namespace Emergency_Passport_Tracker.Security
 {
     public static class SecurityHelper
     {

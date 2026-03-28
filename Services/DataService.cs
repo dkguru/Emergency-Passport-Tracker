@@ -7,11 +7,10 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using System.IO;
 using System.Windows.Forms;
+using Emergency_Passport_Tracker.Models;
+using Emergency_Passport_Tracker.Security;
 
-using EmergencyPassportTracker.Models;
-using EmergencyPassportTracker.Security;
-
-namespace EmergencyPassportTracker.Services
+namespace Emergency_Passport_Tracker.Services
 {
     public class DataService
     {
@@ -127,7 +126,7 @@ namespace EmergencyPassportTracker.Services
             {
                 MessageBox.Show("Failed to parse data file: " + ex.Message);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 MessageBox.Show("Error loading data: " + ex.Message);
             }

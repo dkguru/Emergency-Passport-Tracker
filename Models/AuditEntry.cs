@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace EmergencyPassportTracker.Models
+namespace Emergency_Passport_Tracker.Models
 {
     public class AuditEntry
     {

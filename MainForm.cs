@@ -11,10 +11,10 @@ using System.Windows.Forms;
 using iText.Kernel.Pdf;
 using iText.Layout;
 using iText.Layout.Element;
-using EmergencyPassportTracker.Models;
-using EmergencyPassportTracker.Services;
+using Emergency_Passport_Tracker.Services;
+using Emergency_Passport_Tracker.Models;
 
-namespace EmergencyPassportTracker
+namespace Emergency_Passport_Tracker
 {
     public partial class MainForm : Form
     {
