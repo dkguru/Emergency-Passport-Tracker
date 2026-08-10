@@ -16,6 +16,10 @@
 .PARAMETER Version
     Override the version instead of reading it from the .csproj.
 
+.PARAMETER InnoSetupPath
+    Path to ISCC.exe, or to the folder containing it. Only needed when Inno Setup is
+    installed somewhere the script does not look.
+
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File .\build-installer.ps1
 #>
@@ -23,7 +27,8 @@
 [CmdletBinding()]
 param(
     [switch]$SkipPublish,
-    [string]$Version
+    [string]$Version,
+    [string]$InnoSetupPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -128,24 +133,120 @@ Write-Host "Published $fileCount files, $sizeMb MB." -ForegroundColor Green
 
 # ------------------------------------------------------------- inno setup
 
-$iscc = Get-Command 'ISCC.exe' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
+function Find-Iscc {
+    param([string]$Explicit)
 
-if (-not $iscc) {
-    $candidates = @(
-        "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
-        "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
-        "${env:ProgramFiles(x86)}\Inno Setup 5\ISCC.exe"
-    )
+    # 1. Explicit path - either the exe itself or the folder containing it.
+    if ($Explicit) {
+        if (Test-Path $Explicit -PathType Leaf) {
+            return (Resolve-Path $Explicit).Path
+        }
 
-    $iscc = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+        $exe = Join-Path $Explicit 'ISCC.exe'
+
+        if (Test-Path $exe) {
+            return (Resolve-Path $exe).Path
+        }
+
+        Fail "No ISCC.exe found at: $Explicit"
+    }
+
+    # 2. On PATH.
+    $onPath = Get-Command 'ISCC.exe' -ErrorAction SilentlyContinue
+
+    if ($onPath) {
+        return $onPath.Source
+    }
+
+    # 3. Any "Inno Setup <n>" folder under a plausible root, newest version first.
+    #
+    #    Both halves of this matter. Matching the prefix rather than a hard-coded 6 finds
+    #    Inno Setup 7 and later. Including %LOCALAPPDATA%\Programs finds a per-user install -
+    #    winget installs without elevation when it can, and Inno Setup's own installer then
+    #    puts itself under the user profile rather than Program Files.
+    $roots = @($env:ProgramFiles, ${env:ProgramFiles(x86)}, $env:ProgramW6432, $env:LOCALAPPDATA)
+
+    if ($env:LOCALAPPDATA) {
+        $roots += (Join-Path $env:LOCALAPPDATA 'Programs')
+    }
+
+    $roots = @($roots | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique)
+
+    $script:SearchedRoots = $roots
+    $installs = @()
+
+    foreach ($root in $roots) {
+        $dirs = Get-ChildItem -Path $root -Directory -Filter 'Inno Setup*' -ErrorAction SilentlyContinue
+
+        foreach ($dir in $dirs) {
+            $exe = Join-Path $dir.FullName 'ISCC.exe'
+            if (-not (Test-Path $exe)) { continue }
+
+            $major = 0
+            if ($dir.Name -match '(\d+)') { $major = [int]$Matches[1] }
+
+            $installs += [pscustomobject]@{ Path = $exe; Major = $major }
+        }
+    }
+
+    if ($installs.Count -gt 0) {
+        return ($installs | Sort-Object Major -Descending | Select-Object -First 1).Path
+    }
+
+    # 4. Registry, for installs somewhere else entirely. HKCU is listed because that is
+    #    where a per-user install records itself.
+    foreach ($key in @(
+        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Inno Setup*_is1',
+        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Inno Setup*_is1',
+        'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Inno Setup*_is1')) {
+
+        $entries = Get-ItemProperty -Path $key -ErrorAction SilentlyContinue
+
+        foreach ($entry in $entries) {
+            $property = $entry.PSObject.Properties['InstallLocation']
+            if (-not $property -or -not $property.Value) { continue }
+
+            $exe = Join-Path $property.Value 'ISCC.exe'
+            if (Test-Path $exe) { return $exe }
+        }
+    }
+
+    return $null
 }
 
-if (-not $iscc) {
-    Fail @"
-Inno Setup was not found.
+$script:SearchedRoots = @()
+$iscc = Find-Iscc -Explicit $InnoSetupPath
 
-Install Inno Setup 6.3 or later from https://jrsoftware.org/isdl.php
-then run this script again.
+if (-not $iscc) {
+    # The searched locations are listed so this message distinguishes "not installed" from
+    # "installed somewhere I did not look". The URLs sit alone on their lines so that mail
+    # and chat clients do not glue the following word onto the end of the link.
+    $searched = ($script:SearchedRoots | ForEach-Object { "    $_" }) -join [Environment]::NewLine
+
+    Fail @"
+ISCC.exe (the Inno Setup compiler) could not be found.
+
+Searched PATH, the registry, and any 'Inno Setup *' folder directly under:
+
+$searched
+
+If Inno Setup is not installed yet, install it with:
+
+    winget install -e --id JRSoftware.InnoSetup
+
+or download it from:
+
+    https://jrsoftware.org/isdl.php
+
+Version 6.3 or later is required.
+
+If it IS installed, find the compiler and pass its location in. Run:
+
+    Get-ChildItem "`$env:LOCALAPPDATA","`$env:ProgramFiles","`${env:ProgramFiles(x86)}" -Filter ISCC.exe -Recurse -Depth 3 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
+
+then:
+
+    .\build-installer.ps1 -SkipPublish -InnoSetupPath "<the folder it printed>"
 "@
 }
 
