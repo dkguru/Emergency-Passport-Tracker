@@ -7,6 +7,23 @@
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationIcon>Resources\app.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <!-- Shown in the exe's file properties, in Add/Remove Programs, and used by the installer.
+       Bump Version before building a new installer. -->
+  <PropertyGroup>
+    <Version>1.1.0</Version>
+    <AssemblyVersion>1.1.0.0</AssemblyVersion>
+    <FileVersion>1.1.0.0</FileVersion>
+    <Product>Emergency Passport Tracker</Product>
+    <AssemblyTitle>Emergency Passport Tracker</AssemblyTitle>
+    <Description>Inventory and issuance log for emergency passports.</Description>
+    <Company>Jesper Angelo</Company>
+    <Authors>Jesper Angelo</Authors>
+    <Copyright>Copyright © 2026 Jesper Angelo</Copyright>
+    <!-- iText ships translations for ~20 languages; this keeps them out of the install. -->
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
 
   <ItemGroup>

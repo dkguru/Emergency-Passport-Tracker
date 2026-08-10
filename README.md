@@ -81,15 +81,29 @@ EmergencyPassportTracker/
 
 ### Requirements
 
+To run the installed application: **Windows 10 or later, 64-bit.** Nothing else - the .NET
+runtime is bundled.
+
+To build from source:
+
 * Windows
-* .NET 6 or later
+* .NET 9 SDK
 * Visual Studio 2022+
+* Inno Setup 6.3+ (only if you are building the installer)
 
 ### Run the Application
 
 1. Open the solution in Visual Studio
 2. Build and run (`F5`)
 3. Enter a PIN when prompted
+
+### Install the Application
+
+Run `EmergencyPassportTracker-Setup-<version>.exe`. It installs for the current user only,
+needs no administrator rights, and includes the .NET runtime, so nothing has to be installed
+on the PC beforehand.
+
+To build that installer yourself, see [INSTALLER.md](INSTALLER.md).
 
 > The PIN is required to decrypt the data file.
 > If lost, the data cannot be recovered.

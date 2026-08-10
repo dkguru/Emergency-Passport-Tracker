@@ -361,3 +361,7 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+# Installer build output
+Installer/Output/*
+!Installer/Output/.gitkeep
+bin/publish/
