@@ -87,7 +87,7 @@ runtime is bundled.
 To build from source:
 
 * Windows
-* .NET 9 SDK
+* .NET 10 SDK
 * Visual Studio 2022+
 * Inno Setup 6.3+ (only if you are building the installer)
 

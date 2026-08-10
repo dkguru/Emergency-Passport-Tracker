@@ -40,7 +40,7 @@ replaced with an Inno Setup script.
 
 ## What you need, once
 
-1. **.NET 9 SDK** — you already have this, since the project builds.
+1. **.NET 10 SDK** — you already have this, since the project builds.
 2. **Inno Setup 6.3 or later** — <https://jrsoftware.org/isdl.php>. Free, and the plain
    installer is fine; no extra components are needed.
 
@@ -64,7 +64,7 @@ That does two things:
 The result is:
 
 ```
-Installer\Output\EmergencyPassportTracker-Setup-1.1.0.exe
+Installer\Output\EmergencyPassportTracker-Setup-1.2.0.exe
 ```
 
 Roughly 60–70 MB, because the .NET runtime is bundled.
@@ -95,7 +95,7 @@ version instead of installing beside it.
 
 * Installs **per user**, into `%LOCALAPPDATA%\Programs\Emergency Passport Tracker`.
   No administrator rights are needed.
-* Bundles the **.NET 9 runtime**, so the target PC needs nothing installed first, and the app
+* Bundles the **.NET 10 runtime**, so the target PC needs nothing installed first, and the app
   keeps working if Microsoft's runtime is later updated or removed.
 * Creates a Start Menu entry, and a desktop shortcut if the box is ticked.
 * Offers to close the app automatically when installing over a running copy.
@@ -120,7 +120,7 @@ Take a CSV backup before any upgrade anyway.
 If this ever needs to go on a shared PC for all users:
 
 ```
-EmergencyPassportTracker-Setup-1.1.0.exe /ALLUSERS
+EmergencyPassportTracker-Setup-1.2.0.exe /ALLUSERS
 ```
 
 That requires administrator rights. Note that each Windows user still gets their own data file,

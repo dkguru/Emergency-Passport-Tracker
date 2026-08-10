@@ -13,9 +13,9 @@
   <!-- Shown in the exe's file properties, in Add/Remove Programs, and used by the installer.
        Bump Version before building a new installer. -->
   <PropertyGroup>
-    <Version>1.1.0</Version>
-    <AssemblyVersion>1.1.0.0</AssemblyVersion>
-    <FileVersion>1.1.0.0</FileVersion>
+    <Version>1.2.0</Version>
+    <AssemblyVersion>1.2.0.0</AssemblyVersion>
+    <FileVersion>1.2.0.0</FileVersion>
     <Product>Emergency Passport Tracker</Product>
     <AssemblyTitle>Emergency Passport Tracker</AssemblyTitle>
     <Description>Inventory and issuance log for emergency passports.</Description>
@@ -61,7 +61,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="itext7" Version="9.7.0" />
+    <!-- 'itext7' is a deprecated 30 KB shim that only depends on 'itext'. Every itext7
+         version from 8.0.1 onwards is deprecated, so bumping it does not clear the warning -
+         the package id itself has to change. Same assemblies, same API, no code changes. -->
+    <PackageReference Include="itext" Version="9.7.0" />
   </ItemGroup>
 
   <ItemGroup>

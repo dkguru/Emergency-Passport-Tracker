@@ -80,7 +80,7 @@ if ($SkipPublish) {
 }
 else {
     if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
-        Fail "The .NET SDK ('dotnet') is not on PATH. Install the .NET 9 SDK."
+        Fail "The .NET SDK ('dotnet') is not on PATH. Install the .NET 10 SDK."
     }
 
     if (Test-Path $publishDir) {
@@ -171,5 +171,5 @@ Write-Host ""
 Write-Host "Installer built: $setup ($setupMb MB)" -ForegroundColor Green
 Write-Host ""
 Write-Host "It installs per-user and needs no administrator rights." -ForegroundColor Gray
-Write-Host "The .NET 9 runtime is included, so the target PC needs nothing installed first." -ForegroundColor Gray
+Write-Host "The .NET 10 runtime is included, so the target PC needs nothing installed first." -ForegroundColor Gray
 Write-Host ""

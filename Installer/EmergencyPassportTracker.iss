@@ -1,7 +1,7 @@
 ; Emergency Passport Tracker - Inno Setup script
 ;
 ; Replaces the old EPT_Installer Visual Studio setup project, which packaged only
-; obj\Release\net9.0-windows\apphost.exe (the SDK's blank launcher stub) and none of the
+; obj\Release\net9.0-windows\apphost.exe (the SDK's blank launcher stub, from the .NET 9 era)
 ; application's own files.
 ;
 ; Build with:  powershell -ExecutionPolicy Bypass -File ..\build-installer.ps1
@@ -18,7 +18,7 @@
 ; Version is normally passed in by build-installer.ps1 (/DMyAppVersion=1.1.0), which reads it
 ; from the .csproj. This default is only used when compiling the script by hand.
 #ifndef MyAppVersion
-  #define MyAppVersion   "1.1.0"
+  #define MyAppVersion   "1.2.0"
 #endif
 
 ; Where 'dotnet publish' put the self-contained build.
