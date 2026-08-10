@@ -9,10 +9,12 @@ Designed for consular and administrative use, the system ensures **data integrit
 
 ### Security
 
-* AES-encrypted local data storage (`eptdata.enc`)
-* PIN-based access control
-* PBKDF2 key derivation (salted, 100,000 iterations)
-* No plaintext data stored on disk
+* AES-256-CBC encrypted local data storage (`eptdata.enc`)
+* HMAC-SHA256 integrity tag, so a wrong code is detected with certainty
+* PIN-based access control, entered masked
+* PBKDF2 key derivation (salted, 100,000 iterations, SHA-256)
+* No plaintext data stored on disk by the application itself
+* Atomic saves: an interrupted write cannot corrupt the data file
 
 ### Data Integrity
 
@@ -39,9 +41,15 @@ Designed for consular and administrative use, the system ensures **data integrit
 * Print preview and printing
 * Export to PDF
 
+### Backup
+
+* Export all records and the full audit log to CSV
+* Restore from CSV, with a safety copy of the encrypted file taken first
+* CSV backups are deliberately **not encrypted** - store them on an encrypted drive
+
 ### Output
 
-* Printable log matching official form layout
+* Printable log matching official form layout, paginated
 * PDF export for digital archiving
 
 ---
@@ -90,13 +98,28 @@ EmergencyPassportTracker/
 
 ## Data Storage
 
-* All data is stored in:
+* All data is stored in `eptdata.enc`.
+* If a data file already exists next to the executable, that one keeps being used.
+  Otherwise a new one is created in:
 
   ```
-  eptdata.enc
+  %LOCALAPPDATA%\EmergencyPassportTracker\eptdata.enc
   ```
-* Located in the application directory
-* Fully encrypted using AES
+
+  (the application directory is not writable when the app is installed into Program Files).
+* Encrypted with AES-256-CBC; the key is derived from the access code with PBKDF2.
+* Every save is written to a temporary file first and then swapped in, and the previous
+  version is kept as `eptdata.enc.bak`.
+* Occasional encrypted copies are written to a `Backups` sub-folder.
+
+### File format
+
+```
+"EPT2" | salt length | iv length | salt | iv | HMAC-SHA256 (32 bytes) | ciphertext
+```
+
+Files written by earlier versions (`EPT1`, and the original headerless
+`salt | iv | ciphertext` layout) are still read, and are upgraded to `EPT2` on the next save.
 
 ---
 
@@ -116,13 +139,12 @@ EmergencyPassportTracker/
 
 ### Edit Records
 
-* Records can be updated until:
-
-  * Status is set to **B (Issued)**
-* After that:
-
-  * Record becomes locked
-  * No further changes allowed
+* Records can be updated until they are locked.
+* Setting the status to **B (Issued)** starts the issuance: fill in *Issued to* and
+  *Date issued* as well. Once all three are present the application asks whether to lock
+  the record, and only locks it after you confirm.
+* Once locked, a record can never be changed again. Locked rows are greyed out.
+* Status can only be set to A, B, C or D.
 
 ---
 
@@ -147,6 +169,29 @@ EmergencyPassportTracker/
 ### Export to PDF
 
 * Exports all records into a structured PDF file
+* Choose the destination with the file dialog
+
+---
+
+### Backup and Restore
+
+**Backup to CSV** writes two files into a folder you choose:
+
+```
+EPT-Records-yyyyMMdd-HHmmss.csv
+EPT-Audit-yyyyMMdd-HHmmss.csv
+```
+
+Dates are written as `yyyy-MM-dd`, values are RFC 4180 quoted, and the files are UTF-8.
+They are **not encrypted**.
+
+**Restore from CSV** reads those files back. Before anything is replaced the current
+encrypted data file is copied to the `Backups` folder. The whole file is validated before
+the restore starts, so a malformed backup cannot leave the tracker half-populated.
+
+> Note: passport numbers keep their leading zeros in the file, but Excel may display
+> `00012345` as `12345` if you double-click the CSV. Import it as text if that matters.
+> Restoring reads the file directly, so the stored values are never affected.
 
 ---
 
@@ -175,8 +220,11 @@ This system is designed as an **audit-safe ledger**:
 
 ### Encryption Warning
 
-* If the PIN is incorrect ? decryption fails
-* If the PIN is lost ? data is permanently inaccessible
+* If the code is incorrect, the application says so and asks again.
+  **It does not open, does not clear anything, and does not write to the data file.**
+* If the code is lost, the data is permanently inaccessible. There is no recovery.
+* CSV backups are not protected in any way. Anyone who can open the file can read every
+  record, so keep them on an encrypted drive.
 
 ---
 
@@ -185,6 +233,7 @@ This system is designed as an **audit-safe ledger**:
 * No cloud sync (offline-first design)
 * No password recovery
 * Basic UI (WinForms)
+* CSV backups are unencrypted by design
 
 ---
 
@@ -195,6 +244,7 @@ Potential enhancements:
 * Multi-user authentication
 * Role-based access control
 * Cloud backup (encrypted)
+* Encrypted export format alongside the plain CSV
 * Barcode/QR scanning
 * Installer packaging
 

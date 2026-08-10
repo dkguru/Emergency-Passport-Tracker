@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System;
 
 namespace Emergency_Passport_Tracker.Models
 {
@@ -15,9 +11,9 @@ namespace Emergency_Passport_Tracker.Models
 
     public class User
     {
-        public string Username { get; set; }
-        public byte[] PinHash { get; set; }
-        public byte[] Salt { get; set; }
+        public string Username { get; set; } = string.Empty;
+        public byte[] PinHash { get; set; } = Array.Empty<byte>();
+        public byte[] Salt { get; set; } = Array.Empty<byte>();
         public UserRole Role { get; set; }
     }
 }
