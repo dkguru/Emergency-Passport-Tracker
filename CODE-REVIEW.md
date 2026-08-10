@@ -94,7 +94,21 @@ so the stored data is never affected.
 ## 4. Verification
 
 No .NET SDK was reachable from the sandbox I ran this in (the Microsoft and NuGet endpoints are
-blocked), so **the project has not been compiled — please build it in Visual Studio before use.**
+blocked), so the first build was done by Jesper in Visual Studio. It surfaced two problems in
+`MainForm.cs`, both now fixed:
+
+* **CS0104, 20 occurrences.** `iText.Kernel.Geom` declares its own `Point`, `Path` and
+  `Rectangle`, which collide with `System.Drawing.Point`, `System.IO.Path` and
+  `System.Drawing.Rectangle`. iText is now imported through using-aliases
+  (`PdfParagraph`, `PdfTable`, `PdfCell`, ...) instead of plain `using` directives, so nothing
+  from iText leaks into the rest of the form's namespace.
+* **CS1061.** `Paragraph` has no `SetBold()` in iText 9. Bold now comes from
+  `PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD)` and `SetFont()`.
+* One CS8600 warning: `resources.GetObject()` returns `object?`, cast to a non-nullable `Image`.
+  Now cast to `Image?`.
+
+Everything else compiled clean on that first pass, including `DataService`, `BackupService`,
+`PinPromptForm`, `Program` and the models.
 
 What I did verify, by re-implementing the exact byte layout and CSV rules and testing them
 directly:

@@ -8,14 +8,24 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Windows.Forms;
-using iText.Kernel.Geom;
-using iText.Kernel.Pdf;
-using iText.Layout;
-using iText.Layout.Element;
-using iText.Layout.Properties;
 using Emergency_Passport_Tracker.Models;
 using Emergency_Passport_Tracker.Services;
 using Emergency_Passport_Tracker.UI;
+
+// iText is brought in through aliases rather than plain 'using' directives: several of its
+// namespaces declare Point, Path, Rectangle, Document and Cell, which clash with the
+// System.Drawing / System.IO / WinForms types used everywhere else in this form.
+using PdfWriter = iText.Kernel.Pdf.PdfWriter;
+using PdfDocument = iText.Kernel.Pdf.PdfDocument;
+using PdfFont = iText.Kernel.Font.PdfFont;
+using PdfFontFactory = iText.Kernel.Font.PdfFontFactory;
+using StandardFonts = iText.IO.Font.Constants.StandardFonts;
+using PdfPageSize = iText.Kernel.Geom.PageSize;
+using PdfLayoutDocument = iText.Layout.Document;
+using PdfParagraph = iText.Layout.Element.Paragraph;
+using PdfTable = iText.Layout.Element.Table;
+using PdfCell = iText.Layout.Element.Cell;
+using PdfUnitValue = iText.Layout.Properties.UnitValue;
 
 namespace Emergency_Passport_Tracker
 {
@@ -169,7 +179,7 @@ namespace Emergency_Passport_Tracker
             // logoBox
             //
             logoBox.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            logoBox.Image = (System.Drawing.Image)resources.GetObject("logoBox.Image");
+            logoBox.Image = (System.Drawing.Image?)resources.GetObject("logoBox.Image");
             logoBox.Location = new Point(716, 12);
             logoBox.Name = "logoBox";
             logoBox.Size = new Size(75, 75);
@@ -1107,22 +1117,26 @@ namespace Emergency_Passport_Tracker
             // not wrapped in 'using' - that would dispose them a second time.
             var writer = new PdfWriter(path);
             var pdf = new PdfDocument(writer);
-            var document = new Document(pdf, PageSize.A4);
+            var document = new PdfLayoutDocument(pdf, PdfPageSize.A4);
 
             try
             {
-                document.Add(new Paragraph("INVENTORY LOG OF EMERGENCY PASSPORTS")
-                    .SetBold()
+                // iText has no SetBold() on Paragraph; bold comes from using a bold font.
+                PdfFont bold = PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD);
+
+                document.Add(new PdfParagraph("INVENTORY LOG OF EMERGENCY PASSPORTS")
+                    .SetFont(bold)
                     .SetFontSize(14));
 
-                document.Add(new Paragraph($"Printed {DateTime.Now:g}").SetFontSize(8));
+                document.Add(new PdfParagraph($"Printed {DateTime.Now:g}").SetFontSize(8));
 
-                var table = new Table(UnitValue.CreatePercentArray(new float[] { 16, 26, 15, 33, 10 }))
+                var table = new PdfTable(PdfUnitValue.CreatePercentArray(new float[] { 16, 26, 15, 33, 10 }))
                     .UseAllAvailableWidth();
 
                 foreach (string heading in new[] { "Passport #", "Issued to", "Date issued", "Notes", "Status" })
                 {
-                    table.AddHeaderCell(new Cell().Add(new Paragraph(heading).SetBold().SetFontSize(9)));
+                    table.AddHeaderCell(new PdfCell()
+                        .Add(new PdfParagraph(heading).SetFont(bold).SetFontSize(9)));
                 }
 
                 foreach (PassportRecord r in _records)
@@ -1136,9 +1150,9 @@ namespace Emergency_Passport_Tracker
 
                 document.Add(table);
 
-                document.Add(new Paragraph("\nPrinted name and signature of Honorary Consul: " +
-                                           "_______________________________").SetFontSize(9));
-                document.Add(new Paragraph("Date: ____________________").SetFontSize(9));
+                document.Add(new PdfParagraph("\nPrinted name and signature of Honorary Consul: " +
+                                              "_______________________________").SetFontSize(9));
+                document.Add(new PdfParagraph("Date: ____________________").SetFontSize(9));
             }
             finally
             {
@@ -1146,9 +1160,9 @@ namespace Emergency_Passport_Tracker
             }
         }
 
-        private static Cell MakeCell(string? text)
+        private static PdfCell MakeCell(string? text)
         {
-            return new Cell().Add(new Paragraph(text ?? string.Empty).SetFontSize(9));
+            return new PdfCell().Add(new PdfParagraph(text ?? string.Empty).SetFontSize(9));
         }
 
         // --------------------------------------------------------------- audit
